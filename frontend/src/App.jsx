@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 
-import { predictCsv } from "./api/client";
+import { predictXlsx } from "./api/client";
 import PredictionTable from "./components/PredictionTable";
+import TemplateGuideSection from "./components/TemplateGuideSection";
 import UploadSection from "./components/UploadSection";
 
 function formatFileSize(bytes) {
@@ -67,7 +68,7 @@ function App() {
     setMessage("");
 
     try {
-      const payload = await predictCsv(file);
+      const payload = await predictXlsx(file);
       const nextPredictions = payload.predictions || [];
       const totalRows = Number(payload.total_rows) || nextPredictions.length;
 
@@ -94,9 +95,11 @@ function App() {
           <p className="eyebrow">Fraud Detection Dashboard</p>
           <h1>Analyze Uploaded Transactions</h1>
           <p className="subtitle">
-            Upload your CSV file and review fraud probability, risk recommendation, and row-level results.
+            Upload your XLSX file and review fraud probability, risk recommendation, and row-level results.
           </p>
         </header>
+
+        <TemplateGuideSection />
 
         <UploadSection disabled={isPredicting} isPredicting={isPredicting} onPredict={handlePredict} />
 

@@ -13,6 +13,10 @@ async function parseResponse(response) {
   return payload;
 }
 
+export function getPredictionTemplateUrl() {
+  return `${API_BASE}/template`;
+}
+
 export async function getModelStatus() {
   const response = await fetch(`${API_BASE}/status`, {
     method: "GET",
@@ -27,7 +31,7 @@ export async function trainModel() {
   return parseResponse(response);
 }
 
-export async function predictCsv(file) {
+export async function predictXlsx(file) {
   const formData = new FormData();
   formData.append("file", file);
 

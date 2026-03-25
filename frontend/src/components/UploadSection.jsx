@@ -19,9 +19,9 @@ function UploadSection({ disabled, isPredicting, onPredict }) {
 
   return (
     <section className="card upload-card">
-      <h2>Upload CSV for Analysis</h2>
+      <h2>Upload Excel (.xlsx) for Analysis</h2>
       <p className="hint">
-        Upload a CSV matching the training feature schema (without the fraud label) to get per-transaction risk predictions.
+        Upload an XLSX file matching the training feature schema (without the fraud label) to get per-transaction risk predictions.
       </p>
 
       <form className="upload-form" onSubmit={handleSubmit}>
@@ -29,12 +29,12 @@ function UploadSection({ disabled, isPredicting, onPredict }) {
           <input
             id="transactions-file"
             type="file"
-            accept=".csv,text/csv"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={handleFileChange}
             disabled={disabled}
-            aria-label="Upload CSV file"
+            aria-label="Upload XLSX file"
           />
-          <span>{selectedFile ? selectedFile.name : "Choose CSV file"}</span>
+          <span>{selectedFile ? selectedFile.name : "Choose XLSX file"}</span>
         </label>
 
         <button type="submit" className="primary" disabled={disabled || !selectedFile}>
