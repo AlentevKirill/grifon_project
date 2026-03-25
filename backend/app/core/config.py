@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     project_root: Path = backend_dir.parent
     artifacts_dir: Path = backend_dir / "artifacts"
     dataset_path: Path = project_root / "Bank_Transaction_Fraud_Detection.csv"
+    template_path: Path = backend_dir / "app" / "templates" / "Template Data.xlsx"
 
     preprocessor_path: Path = artifacts_dir / "preprocessor.joblib"
     model_path: Path = artifacts_dir / "fraud_model.pt"

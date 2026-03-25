@@ -13,7 +13,7 @@ class PredictionItem(BaseModel):
 
 
 class PredictionResponse(BaseModel):
-    """Batch prediction response for uploaded CSV content."""
+    """Batch prediction response for uploaded XLSX content."""
 
     total_rows: int = Field(ge=0)
     predictions: list[PredictionItem]

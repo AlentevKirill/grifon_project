@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from dataclasses import asdict
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,13 @@ from app.ml.trainer import ARTIFACT_VERSION, TrainingResult, train_and_persist_m
 
 class FraudModelService:
     """Service responsible for model training lifecycle and prediction workflow."""
+
+    XLSX_MIME_TYPES = {
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/octet-stream",
+    }
+
+    DEFAULT_TEMPLATE_FILENAME = "Template Data.xlsx"
 
     def __init__(self) -> None:
         self._model: FraudDetectorNN | None = None
@@ -202,12 +211,57 @@ class FraudModelService:
         self._preprocessor = preprocessor
         self._metadata = metadata
 
-    @staticmethod
-    async def _read_upload_dataframe(file: UploadFile) -> pd.DataFrame:
-        content = await file.read()
-        size_bytes = len(content)
+    def get_prediction_template_path(self) -> Path:
+        """Return the physical XLSX template path used by the template download endpoint."""
+
+        backend_template_path = settings.template_path
+        root_template_path = settings.project_root / self.DEFAULT_TEMPLATE_FILENAME
+
+        if backend_template_path.exists():
+            return backend_template_path
+
+        if root_template_path.exists():
+            try:
+                backend_template_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(root_template_path, backend_template_path)
+            except OSError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Template file is present at project root but could not be staged for download.",
+                ) from exc
+            return backend_template_path
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                "Prediction template file is missing. Expected at either "
+                f"{backend_template_path} or {root_template_path}."
+            ),
+        )
+
+    @classmethod
+    def _validate_xlsx_upload_metadata(cls, file: UploadFile, size_bytes: int) -> None:
+        filename = (file.filename or "").strip()
+        if not filename:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded XLSX file must include a valid filename.",
+            )
+
+        if not filename.lower().endswith(".xlsx"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded file must be in .xlsx format.",
+            )
+
+        if file.content_type and file.content_type not in cls.XLSX_MIME_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded file content type is not supported for XLSX uploads.",
+            )
+
         if size_bytes == 0:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded CSV file is empty.")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded XLSX file is empty.")
 
         max_size_bytes = settings.max_upload_size_mb * 1024 * 1024
         if size_bytes > max_size_bytes:
@@ -216,16 +270,26 @@ class FraudModelService:
                 detail=f"Uploaded file exceeds the {settings.max_upload_size_mb}MB size limit.",
             )
 
+    @classmethod
+    async def _read_upload_dataframe(cls, file: UploadFile) -> pd.DataFrame:
+        content = await file.read()
+        cls._validate_xlsx_upload_metadata(file=file, size_bytes=len(content))
+
         try:
-            dataframe = pd.read_csv(pd.io.common.BytesIO(content))
+            dataframe = pd.read_excel(BytesIO(content), engine="openpyxl")
+        except ImportError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="XLSX parsing is unavailable because openpyxl is not installed.",
+            ) from exc
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Uploaded file is not a valid CSV.",
+                detail="Uploaded file is not a valid XLSX workbook.",
             ) from exc
 
         if dataframe.empty:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded CSV has no rows.")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded XLSX has no rows.")
 
         return dataframe
 
@@ -237,12 +301,12 @@ class FraudModelService:
         if missing_columns:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Uploaded CSV is missing required columns: {', '.join(missing_columns)}",
+                detail=f"Uploaded XLSX is missing required columns: {', '.join(missing_columns)}",
             )
 
         return dataframe[expected_columns].copy()
 
-    async def predict_csv(self, file: UploadFile) -> dict[str, Any]:
+    async def predict_xlsx(self, file: UploadFile) -> dict[str, Any]:
         self._ensure_model_loaded()
 
         dataframe = await self._read_upload_dataframe(file)
